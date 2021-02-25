@@ -1,0 +1,117 @@
+# Loading the data. 
+* First unzip the file and load the data into a variable called "data". 
+* Take a quick look at the first 10 rows. 
+```{r}
+unzip("activity.zip")
+data <- read.csv("activity.csv")
+head(data, 10)
+```
+
+# Total Number of Steps per Day
+* Load dplyr package
+* Limit the data to where we don't have any N/A's. 
+* Group the data by date and sum up. 
+* Plot histogram of the total number of steps per day. 
+```{r}
+library(dplyr)
+data <- data[complete.cases(data),]
+by_day <- data %>% group_by(date) %>% summarise(total = sum(steps))
+head(by_day, 10)
+
+hist(by_day$total, main = "Total Number of Steps per Day", xlab = "Steps per Day")
+
+```
+
+# Mean and Median
+```{r, echo=FALSE}
+#Keeping this hidden as I'm not sure if it was asking for mean for each day or mean for all days. Seems to be the latter based on the discussions so hiding this from view. 
+average_by_day <- data %>% group_by(date) %>% summarise(average_steps = mean(steps, na.rm = TRUE))
+head(average_by_day)
+
+median_by_day <- data %>% group_by(date) %>% summarise(median_steps = median(steps, na.rm = TRUE))
+head(median_by_day)
+```
+
+
+* The mean number of steps is 10,766 and the median number of steps is 10,765. 
+```{r}
+summary(by_day$total)
+
+```
+
+
+# Average Daily Activity Pattern
+* First we group the data by interval and then calculate the average number of steps. 
+* Next we plot this data with the interval on the x-axis and the average number of steps on the y-axis. 
+* Next we find the interval with the highest average number of steps. This occurs on interval 835. 
+```{r}
+average_by_interval <- data %>% group_by(interval) %>% summarise(average_steps = mean(steps))
+head(average_by_interval)
+plot(average_by_interval$interval, average_by_interval$average_steps, type = "l", xlab = "Interval", ylab = "Average Steps", main = "Average Steps by Interval")
+
+average_by_interval[which.max(average_by_interval$average_steps),]
+```
+
+# Imputing Missing Values
+* First I'm going to load the data again because I removed the rows with NA values earlier. 
+* Next we calculate the number of rows with missing values. 
+* There are 2,304 rows with missing values. 
+* Next to fill in the missing N/A values. 
+* We'll first merge the average numbers of steps by interval we calculated earlier to the data table with the missing
+N/A values. 
+* Then we replace the missing values with the average number of steps for that time interval. 
+* Next we just clean up the dataset a bit by removing the average steps and putting the new data in a new variable.
+* We then repeat our earlier steps of creating a histogram and calculating the mean and median number of steps per day. 
+* We can see that the new mean is 10,766 and the new median is 10,766. While the mean number of steps hasn't seen a material change, the median has seen a slight increase. 
+```{r}
+data_with_na <- read.csv("activity.csv")
+head(data_with_na, 10)
+
+
+sum(is.na(data_with_na))
+
+merged_table <- merge(data_with_na, average_by_interval, by= "interval")
+head(merged_table)
+
+merged_table$steps <- ifelse(is.na(merged_table$steps), merged_table$average_steps, merged_table$steps)
+head(merged_table, 10)
+
+merged_table <- merged_table[order(merged_table$date),]
+
+new_dataset <- select(merged_table,1:3) %>% arrange(date)
+head(new_dataset)
+
+
+by_day_new_dataset <- new_dataset %>% group_by(date) %>% summarise(total = sum(steps))
+head(by_day_new_dataset, 10)
+
+hist(by_day_new_dataset$total, main = "Total Number of Steps per Day", xlab = "Steps per Day")
+
+summary(by_day_new_dataset$total)
+```
+
+
+# Weekdays vs Weekends
+* First creating a copy of our new dataset with the imputed values so as to not mess up the original dataset.
+* Next calculate the day of the week and then create a new column with whether it is a weekday or weekend. 
+* Convert to factor. 
+* Calculate the average by grouping by interval and weekend/weekday.
+* Create a panel graph showing average number of steps by interval on weekdays vs weekends. 
+```{r}
+new_dataset2 <- new_dataset
+head(new_dataset2)
+
+new_dataset2$date <- as.Date(new_dataset2$date)
+new_dataset2$day <- weekdays(new_dataset2$date)
+new_dataset2$weekday <- ifelse(new_dataset2$day == "Saturday" | new_dataset2$day == "Sunday", "Weekend", "Weekday")
+head(new_dataset2, 10)
+
+new_dataset2$weekday <- as.factor(new_dataset2$weekday)
+
+AverageByIntervalAndDay <- new_dataset2 %>% group_by(interval, weekday) %>% summarise(average_steps = mean(steps))
+head(AverageByIntervalAndDay)
+
+
+library(ggplot2)
+ggplot(data = AverageByIntervalAndDay, aes(interval, average_steps)) + geom_line(color = "blue") + labs(title = "Number of Steps By Interval, Weekday vs Weekend", y = "Number of Steps", x = "Interval") + facet_wrap(~ weekday, ncol = 1)
+```
